@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Manuscript — Docx to WordPress HTML</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root{
+    --paper:#f6f3ec;
+    --paper-dim:#ece7db;
+    --ink:#20201c;
+    --ink-soft:#5b564a;
+    --rule:#cfc7b3;
+    --accent:#8a4a2f;
+    --accent-soft:#f0e3d8;
+    --ok:#3f6b4a;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --serif: 'Source Serif 4', 'Georgia', serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .masthead{
+    border-bottom:2px solid var(--ink);
+    padding:28px 32px 18px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .masthead h1{
+    margin:0;
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  .masthead .kicker{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin-bottom:6px;
+  }
+  .masthead .rules{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-soft);
+    max-width:320px;
+    line-height:1.5;
+    text-align:right;
+  }
+
+  .layout{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0;
+    min-height:calc(100vh - 96px);
+  }
+  @media (max-width:880px){
+    .layout{grid-template-columns:1fr;}
+  }
+
+  .col{
+    padding:32px;
+    border-right:1px solid var(--rule);
+  }
+  .col:last-child{border-right:none;}
+
+  .section-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .section-label .num{
+    color:var(--accent);
+    font-weight:600;
+  }
+
+  .dropzone{
+    border:2px dashed var(--rule);
+    border-radius:2px;
+    padding:36px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+    background:var(--paper-dim);
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .dropzone .glyph{
+    font-size:26px;
+    margin-bottom:10px;
+    color:var(--accent);
+  }
+  .dropzone .primary{
+    font-weight:600;
+    font-size:15px;
+    margin-bottom:4px;
+  }
+  .dropzone .secondary{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  input[type=file]{display:none;}
+
+  .filecard{
+    margin-top:16px;
+    border:1px solid var(--rule);
+    background:#fff;
+    padding:12px 14px;
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-family:var(--mono);
+    font-size:12.5px;
+  }
+  .filecard.show{display:flex;}
+  .filecard .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .filecard button{
+    border:1px solid var(--ink);
+    background:none;
+    font-family:var(--mono);
+    font-size:11px;
+    padding:4px 8px;
+    cursor:pointer;
+  }
+
+  .options{
+    margin-top:22px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .options label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    cursor:pointer;
+  }
+  .options input{accent-color:var(--accent);}
+
+  .status{
+    margin-top:18px;
+    font-family:var(--mono);
+    font-size:12px;
+    min-height:16px;
+  }
+  .status.err{color:#a13a2a;}
+  .status.ok{color:var(--ok);}
+
+  .tag-key{
+    margin-top:26px;
+    padding-top:18px;
+    border-top:1px solid var(--rule);
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-soft);
+    line-height:1.9;
+  }
+  .tag-key b{color:var(--ink);}
+
+  .outwrap{
+    display:flex;
+    flex-direction:column;
+    height:100%;
+  }
+  .tabs{
+    display:flex;
+    gap:2px;
+    margin-bottom:12px;
+  }
+  .tab{
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:7px 14px;
+    background:var(--paper-dim);
+    border:1px solid var(--rule);
+    cursor:pointer;
+    color:var(--ink-soft);
+  }
+  .tab.active{
+    background:var(--ink);
+    color:var(--paper);
+    border-color:var(--ink);
+  }
+
+  .pane{display:none;flex:1;min-height:340px;}
+  .pane.active{display:flex;flex-direction:column;}
+
+  #codeOut{
+    flex:1;
+    width:100%;
+    resize:none;
+    background:#1d1c18;
+    color:#e9e3d3;
+    font-family:var(--mono);
+    font-size:12.5px;
+    line-height:1.65;
+    padding:16px;
+    border:1px solid var(--ink);
+    white-space:pre;
+    overflow:auto;
+  }
+
+  #previewOut{
+    flex:1;
+    background:#fff;
+    border:1px solid var(--rule);
+    padding:24px;
+    overflow:auto;
+    font-family:var(--serif);
+  }
+  #previewOut h1{font-size:24px;margin:0 0 12px;}
+  #previewOut h2{font-size:19px;margin:22px 0 10px;}
+  #previewOut h3{font-size:17px;margin:20px 0 8px;}
+  #previewOut h4{font-size:15.5px;margin:18px 0 8px;}
+  #previewOut h5{font-size:14.5px;margin:16px 0 6px;}
+  #previewOut h6{font-size:13.5px;margin:16px 0 6px;text-transform:uppercase;letter-spacing:0.04em;}
+  #previewOut p{font-size:15px;line-height:1.7;margin:0 0 14px;color:#2c2a24;}
+  #previewOut img{max-width:100%;border:1px dashed var(--rule);padding:10px;background:var(--paper-dim);}
+  #previewOut strong{font-weight:700;}
+  #previewOut em{font-style:italic;}
+  #previewOut u{text-decoration:underline;}
+  #previewOut a{color:var(--accent);text-decoration:underline;}
+  #previewOut table{border-collapse:collapse;width:100%;margin:0 0 16px;font-size:14px;}
+  #previewOut td, #previewOut th{border:1px solid var(--rule);padding:8px 10px;text-align:left;}
+  #previewOut th{background:var(--paper-dim);font-weight:600;}
+  #previewOut ul, #previewOut ol{margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.7;color:#2c2a24;}
+  #previewOut li{margin-bottom:4px;}
+  #previewOut li ul, #previewOut li ol{margin-top:4px;margin-bottom:0;}
+  #previewOut .placeholder{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-soft);
+    text-align:center;
+  }
+
+  .copybar{
+    margin-top:12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+  }
+  .copybar .count{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+  .copybtn{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.04em;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    padding:9px 18px;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  .copybtn:hover{background:var(--accent);}
+  .copybtn.copied{background:var(--ok);}
+
+  .empty-note{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--ink-soft);
+    padding:20px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div>
+    <div class="kicker">Editorial Tooling</div>
+    <h1>Docx → WordPress HTML</h1>
+  </div>
+  <div class="rules">Keeps h1–h6 / p / img, at their exact heading level.<br>Strips Word's styling, classes, spans, and inline CSS.</div>
+</div>
+
+<div class="layout">
+  <div class="col">
+    <p class="section-label"><span class="num">01</span> Manuscript in</p>
+
+    <div class="dropzone" id="dropzone">
+      <div class="glyph">&#8615;</div>
+      <div class="primary">Drop a .docx file here, or click to browse</div>
+      <div class="secondary">One file at a time · nothing leaves your browser</div>
+      <input type="file" id="fileInput" accept=".docx">
+    </div>
+
+    <div class="filecard" id="fileCard">
+      <span class="name" id="fileName"></span>
+      <button id="clearBtn">Remove</button>
+    </div>
+
+    <div class="options">
+      <label><input type="checkbox" id="optAlt" checked> Keep image alt text (from Word's alt-text field)</label>
+      <label><input type="checkbox" id="optEmptyP" checked> Drop empty paragraphs</label>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="tag-key">
+      <div><b>Block tags kept:</b></div>
+      <div>&lt;h1&gt;–&lt;h6&gt; — Word's "Heading 1"–"Heading 6", each kept at its exact level (Heading 7–9 cap out at h6, since HTML has no tag past h6)</div>
+      <div>&lt;p&gt; — body paragraphs</div>
+      <div>&lt;img alt="..."&gt; — src left blank, fill in after uploading to the WordPress Media Library</div>
+      <div>&lt;table&gt;&lt;tr&gt;&lt;td/th&gt; — real table markup; only the first row is &lt;th&gt; (bold), every other row is &lt;td&gt; (normal weight), with inline border styling so it still looks right once pasted into WordPress</div>
+      <div>&lt;ul&gt;/&lt;ol&gt;&lt;li&gt; — real list markup, nested sub-lists supported</div>
+      <div style="margin-top:10px;"><b>Inline formatting kept:</b></div>
+      <div>&lt;strong&gt; &lt;em&gt; &lt;u&gt; &lt;a href&gt; &lt;br&gt; &lt;img&gt;</div>
+      <div style="margin-top:10px;">Word classes, inline styles, spans, and run wrappers are unwrapped down to their content — not deleted, just de-styled. Images are placed exactly where they sit in the source (inside a paragraph, list item, or table cell), so none get missed or duplicated. Footnote bodies fall through as trailing paragraphs, without the footnote link/anchor. An image inside a heading is pulled out as its own &lt;img&gt; — headings never wrap an &lt;img&gt;.</div>
+      <div style="margin-top:10px;">If an image is missing from the output, check whether it's set to "In Line with Text" in Word's layout options — floating/wrap-text images can be invisible to the converter.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="section-label"><span class="num">02</span> Clean HTML out</p>
+
+    <div class="outwrap">
+      <div class="tabs">
+        <div class="tab active" data-pane="code">Code</div>
+        <div class="tab" data-pane="preview">Preview</div>
+      </div>
+
+      <div class="pane active" id="pane-code">
+        <textarea id="codeOut" readonly spellcheck="false"><span class="empty-note">Waiting for a file — the generated HTML will appear here.</span></textarea>
+        <div class="copybar">
+          <span class="count" id="tagCount"></span>
+          <button class="copybtn" id="copyBtn">Copy HTML</button>
+        </div>
+      </div>
+
+      <div class="pane" id="pane-preview">
+        <div id="previewOut"><div class="placeholder">Nothing to preview yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('fileInput');
+const fileCard   = document.getElementById('fileCard');
+const fileName   = document.getElementById('fileName');
+const clearBtn   = document.getElementById('clearBtn');
+const statusEl   = document.getElementById('status');
+const codeOut    = document.getElementById('codeOut');
+const previewOut = document.getElementById('previewOut');
+const copyBtn    = document.getElementById('copyBtn');
+const tagCount   = document.getElementById('tagCount');
+const optAlt     = document.getElementById('optAlt');
+const optEmptyP  = document.getElementById('optEmptyP');
+
+let lastArrayBuffer = null;
+
+// --- Tabs ---
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('pane-' + tab.dataset.pane).classList.add('active');
+  });
+});
+
+// --- Drag & drop wiring ---
+dropzone.addEventListener('click', () => fileInput.click());
+['dragenter','dragover'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+);
+['dragleave','drop'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+);
+dropzone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) handleFile(f);
+});
+clearBtn.addEventListener('click', () => {
+  lastArrayBuffer = null;
+  fileCard.classList.remove('show');
+  fileInput.value = '';
+  resetOutput();
+});
+optAlt.addEventListener('change', rerun);
+optEmptyP.addEventListener('change', rerun);
+
+function handleFile(file){
+  if (!file.name.toLowerCase().endsWith('.docx')){
+    setStatus('Only .docx files are supported — export from Word/Google Docs as .docx first.', 'err');
+    return;
+  }
+  fileName.textContent = file.name;
+  fileCard.classList.add('show');
+  setStatus('Reading file…');
+  const reader = new FileReader();
+  reader.onload = function(e){
+    lastArrayBuffer = e.target.result;
+    convert(lastArrayBuffer);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function rerun(){
+  if (lastArrayBuffer) convert(lastArrayBuffer);
+}
+
+function resetOutput(){
+  codeOut.value = '';
+  previewOut.innerHTML = '<div class="placeholder">Nothing to preview yet.</div>';
+  tagCount.textContent = '';
+  setStatus('');
+}
+
+function setStatus(msg, kind){
+  statusEl.textContent = msg || '';
+  statusEl.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+// Style map: only these Word paragraph styles become something.
+// Anything else (List Paragraph, Title, Subtitle, Quote, etc.) falls
+// back to Mammoth's default (usually <p>), which we then re-normalize below.
+const styleMap = [
+  "p[style-name='Heading 1'] => h1:fresh",
+  "p[style-name='Heading 2'] => h2:fresh",
+  "p[style-name='Heading 3'] => h3:fresh",
+  "p[style-name='Heading 4'] => h4:fresh",
+  "p[style-name='Heading 5'] => h5:fresh",
+  "p[style-name='Heading 6'] => h6:fresh",
+  // HTML only defines h1–h6; Word's Heading 7/8/9 have no matching
+  // tag, so they cap out at h6 rather than being lost.
+  "p[style-name='Heading 7'] => h6:fresh",
+  "p[style-name='Heading 8'] => h6:fresh",
+  "p[style-name='Heading 9'] => h6:fresh",
+  "p[style-name='Title'] => h1:fresh",
+  "u => u",
+  "table => table",
+  "tr => tr",
+  "td => td",
+  "th => th"
+];
+
+function convert(arrayBuffer){
+  setStatus('Converting…');
+
+  const imageConverter = mammoth.images.imgElement(function(image){
+    return image.readAsBase64String === undefined
+      ? Promise.resolve({})
+      : Promise.resolve({}); // never used directly; we override src below
+  });
+
+  mammoth.convertToHtml(
+    { arrayBuffer: arrayBuffer },
+    {
+      styleMap: styleMap,
+      convertImage: mammoth.images.imgElement(function(image){
+        // Pull alt text if Word stored one; leave src empty for WP upload.
+        const altText = (image.altText || '').trim();
+        return Promise.resolve({ alt: altText });
+      })
+    }
+  ).then(function(result){
+    const cleanHtml = normalize(result.value);
+    codeOut.value = cleanHtml || '<!-- No heading / p / img content found in this document. -->';
+    previewOut.innerHTML = cleanHtml || '<div class="placeholder">No heading / p / img content found.</div>';
+
+    const counts = { h1:0, h2:0, h3:0, h4:0, h5:0, h6:0, p:0, img:0, table:0, li:0 };
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cleanHtml;
+    Object.keys(counts).forEach(tag => counts[tag] = tmp.querySelectorAll(tag).length);
+    const headingCounts = ['h1','h2','h3','h4','h5','h6']
+      .filter(tag => counts[tag] > 0)
+      .map(tag => `${tag}×${counts[tag]}`)
+      .join('  ');
+    tagCount.textContent = `${headingCounts ? headingCounts + '  ' : ''}p×${counts.p}  img×${counts.img}  table×${counts.table}  li×${counts.li}`;
+
+    let msg = 'Converted.';
+    if (result.messages && result.messages.length){
+      const warnings = result.messages.filter(m => m.type === 'warning').length;
+      if (warnings) msg += ` ${warnings} formatting note(s) ignored (safe to disregard).`;
+    }
+    setStatus(msg, 'ok');
+  }).catch(function(err){
+    console.error(err);
+    setStatus('Could not read this file — is it a valid, non-corrupted .docx?', 'err');
+  });
+}
+
+const ALLOWED_INLINE = ['strong', 'em', 'u', 'a', 'br', 'img'];
+
+function escapeHtml(str){
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+function escapeAttr(str){
+  return escapeHtml(str).replace(/"/g, '&quot;');
+}
+function imgTag(img, keepAlt){
+  const alt = keepAlt ? (img.getAttribute('alt') || '') : '';
+  return `<img src="" alt="${escapeAttr(alt)}">`;
+}
+
+function sanitizeInline(node, keepAlt){
+  let html = '';
+  node.childNodes.forEach(child => {
+    if (child.nodeType === 3){ // text
+      html += escapeHtml(child.textContent);
+      return;
+    }
+    if (child.nodeType !== 1) return;
+
+    const rawTag = child.tagName.toLowerCase();
+    const mapped = rawTag === 'b' ? 'strong' : rawTag === 'i' ? 'em' : rawTag;
+
+    if (mapped === 'img'){
+      // Placed exactly where it sits in the source, so an image
+      // inside a paragraph, list item, or table cell is never missed.
+      html += imgTag(child, keepAlt);
+      return;
+    }
+
+    if (ALLOWED_INLINE.includes(mapped)){
+      if (mapped === 'a'){
+        const href = child.getAttribute('href') || '';
+        const inner = sanitizeInline(child, keepAlt);
+        html += href ? `<a href="${escapeAttr(href)}">${inner}</a>` : inner;
+      } else if (mapped === 'br'){
+        html += '<br>';
+      } else {
+        const inner = sanitizeInline(child, keepAlt);
+        html += inner ? `<${mapped}>${inner}</${mapped}>` : '';
+      }
+    } else {
+      // Unknown/structural tag (span, div, sup, p-inside-td, etc.) —
+      // unwrap it and keep recursing into its content.
+      html += sanitizeInline(child, keepAlt);
+    }
+  });
+  return html;
+}
+
+function normalize(rawHtml){
+  const container = document.createElement('div');
+  container.innerHTML = rawHtml;
+
+  const keepAlt = optAlt.checked;
+  const dropEmptyP = optEmptyP.checked;
+  const out = [];
+
+  // Inline borders so the table still looks right once pasted into
+  // WordPress — the block editor strips <style> blocks, so a
+  // stylesheet rule alone won't survive the paste.
+  const CELL_BORDER = 'border:1px solid #000000;padding:8px;';
+  const TH_STYLE = CELL_BORDER + 'font-weight:bold;';
+  const TD_STYLE = CELL_BORDER + 'font-weight:normal;';
+  const TABLE_BORDER = 'border-collapse:collapse;width:100%;';
+
+  function tableTag(table){
+    const rowsHtml = [];
+    const trs = table.querySelectorAll('tr');
+    trs.forEach((tr, rowIndex) => {
+      // Only the first row is treated as the header row — Word/Mammoth
+      // sometimes tags every row as <th> when the table style repeats
+      // header formatting, so we don't trust the source tag past row 0.
+      const isHeaderRow = rowIndex === 0;
+      const cellsHtml = [];
+      Array.from(tr.children).forEach(cell => {
+        const cellTag = isHeaderRow ? 'th' : 'td';
+        const cellStyle = isHeaderRow ? TH_STYLE : TD_STYLE;
+        const inner = sanitizeInline(cell, keepAlt).trim();
+        cellsHtml.push(`    <${cellTag} style="${cellStyle}">${inner}</${cellTag}>`);
+      });
+      rowsHtml.push(`  <tr>\n${cellsHtml.join('\n')}\n  </tr>`);
+    });
+    return `<table style="${TABLE_BORDER}">\n${rowsHtml.join('\n')}\n</table>`;
+  }
+
+  function indent(str){
+    return str.split('\n').map(line => '  ' + line).join('\n');
+  }
+
+  function renderList(listEl){
+    const tag = listEl.tagName.toLowerCase() === 'ol' ? 'ol' : 'ul';
+    const items = [];
+    Array.from(listEl.children).forEach(li => {
+      if (!li.tagName || li.tagName.toLowerCase() !== 'li') return;
+
+      // Nested sub-lists live inside the <li> alongside its text in
+      // Mammoth's output — render them separately from the li's own text.
+      const nestedLists = Array.from(li.children).filter(
+        c => c.tagName && ['ul', 'ol'].includes(c.tagName.toLowerCase())
+      );
+      const clone = li.cloneNode(true);
+      Array.from(clone.children).forEach(c => {
+        if (c.tagName && ['ul', 'ol'].includes(c.tagName.toLowerCase())) clone.removeChild(c);
+      });
+
+      const inner = sanitizeInline(clone, keepAlt).trim();
+      let itemHtml = `<li>${inner}`;
+      nestedLists.forEach(n => { itemHtml += '\n' + indent(renderList(n)); });
+      itemHtml += (nestedLists.length ? '\n' : '') + '</li>';
+      items.push(indent(itemHtml));
+    });
+    return `<${tag}>\n${items.join('\n')}\n</${tag}>`;
+  }
+
+  // Headings should never wrap an <img> — Word sometimes puts a lone
+  // image inside a "Heading" styled paragraph, which would otherwise
+  // come out as <h1><img></h1>. Pull any images out of the heading
+  // first: an image-only heading becomes a bare <img>, and a heading
+  // with both text and an image emits the image(s) before the heading
+  // text, with the heading tag wrapping only the text.
+  function processHeading(el, tag){
+    const clone = el.cloneNode(true);
+    const imgs = Array.from(clone.querySelectorAll('img'));
+    imgs.forEach(img => img.parentNode.removeChild(img));
+
+    const textInner = sanitizeInline(clone, keepAlt).trim();
+    imgs.forEach(img => out.push(imgTag(img, keepAlt)));
+    if (textInner) out.push(`<${tag}>${textInner}</${tag}>`);
+  }
+
+  function processBlock(el){
+    const tag = el.tagName ? el.tagName.toLowerCase() : '';
+
+    if (/^h[1-6]$/.test(tag)){
+      processHeading(el, tag);
+      return;
+    }
+
+    // Anything above h6 (shouldn't occur given the styleMap above,
+    // but just in case) caps out at h6 rather than being dropped.
+    if (/^h[7-9]$/.test(tag)){
+      processHeading(el, 'h6');
+      return;
+    }
+
+    if (tag === 'p'){
+      const inner = sanitizeInline(el, keepAlt).trim();
+      if (inner || !dropEmptyP) out.push(`<p>${inner}</p>`);
+      return;
+    }
+
+    if (tag === 'img'){
+      out.push(imgTag(el, keepAlt));
+      return;
+    }
+
+    if (tag === 'table'){
+      out.push(tableTag(el));
+      return;
+    }
+
+    if (tag === 'ul' || tag === 'ol'){
+      out.push(renderList(el));
+      return;
+    }
+
+    if (tag === 'li'){
+      // A stray <li> without a list wrapper — treat as a paragraph
+      // rather than lose it.
+      const inner = sanitizeInline(el, keepAlt).trim();
+      if (inner) out.push(`<p>${inner}</p>`);
+      return;
+    }
+
+    // Any other container (div, footnote wrapper, etc.) — recurse
+    // into its children to find nested blocks.
+    if (el.children && el.children.length){
+      Array.from(el.children).forEach(child => processBlock(child));
+    }
+  }
+
+  Array.from(container.children).forEach(child => processBlock(child));
+  return out.join('\n\n');
+}
+
+// --- Copy button ---
+copyBtn.addEventListener('click', () => {
+  if (!codeOut.value) return;
+  navigator.clipboard.writeText(codeOut.value).then(() => {
+    copyBtn.textContent = 'Copied';
+    copyBtn.classList.add('copied');
+    setTimeout(() => {
+      copyBtn.textContent = 'Copy HTML';
+      copyBtn.classList.remove('copied');
+    }, 1400);
+  });
+});
+</script>
+
+</body>
+</html>

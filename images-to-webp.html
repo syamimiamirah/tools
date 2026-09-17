@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>images → webp</title>
+<style>
+  :root {
+    --paper:#eef1f4; --panel:#fff; --ink:#17202b; --muted:#6d7987;
+    --line:#d6dde4; --check:#dfe5eb; --indigo:#3a2fd6; --teal:#0d6f6b;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:28px 20px 60px; background:var(--paper); color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:780px; margin:0 auto; }
+
+  /* ---------- header ---------- */
+  .top { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-end;
+    justify-content:space-between; padding-bottom:20px; border-bottom:1px solid var(--line); }
+  .eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted); margin:0 0 10px; }
+  h1 { font-size:clamp(34px,7.5vw,54px); line-height:.92; font-weight:800;
+    letter-spacing:-.045em; margin:0; text-transform:lowercase; }
+  h1 .arrow { color:var(--indigo); font-weight:400; letter-spacing:-.02em; }
+  .tagline { margin:12px 0 0; color:var(--muted); font-size:14.5px; max-width:36ch; }
+
+  .quality { flex:0 0 auto; width:218px; }
+  .quality .qrow { display:flex; justify-content:space-between; align-items:baseline;
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--muted); }
+  .quality .val { font-size:17px; letter-spacing:0; color:var(--ink); font-weight:600; }
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%;
+    background:transparent; margin:12px 0 0; height:18px; }
+  input[type=range]::-webkit-slider-runnable-track { height:2px; background:var(--line); }
+  input[type=range]::-moz-range-track { height:2px; background:var(--line); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px;
+    margin-top:-6px; border-radius:50%; background:var(--indigo); border:0; cursor:grab; }
+  input[type=range]::-moz-range-thumb { width:14px; height:14px; border-radius:50%;
+    background:var(--indigo); border:0; cursor:grab; }
+
+  /* ---------- drop zone ---------- */
+  .drop { display:block; margin:22px 0 0; padding:38px 20px; text-align:center;
+    background:var(--panel); border:1.5px dashed var(--line); cursor:pointer;
+    transition:border-color .15s, background .15s; }
+  .drop:hover, .drop.hot { border-color:var(--indigo); background:#fbfbff; }
+  .drop.hot { border-style:solid; }
+  .drop b { display:block; font-size:17px; font-weight:650; letter-spacing:-.01em; }
+  .drop small { display:block; margin-top:7px; font-family:var(--mono); font-size:11.5px;
+    letter-spacing:.08em; color:var(--muted); text-transform:uppercase; }
+  .drop input { position:absolute; width:1px; height:1px; opacity:0; }
+  .drop:focus-within { outline:2px solid var(--indigo); outline-offset:3px; }
+
+  .note { margin:12px 0 0; font-family:var(--mono); font-size:12px;
+    color:var(--teal); min-height:16px; }
+  .note.warn { color:#a8420b; }
+
+  /* ---------- summary ---------- */
+  .summary { display:none; align-items:baseline; gap:14px; flex-wrap:wrap;
+    margin:26px 0 0; padding:16px 18px; background:var(--ink); color:#fff; }
+  .summary.on { display:flex; }
+  .summary .label { font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; opacity:.6; }
+  .summary .big { font-size:24px; font-weight:700; letter-spacing:-.03em; }
+  .summary .pct { color:#7de3d4; font-family:var(--mono); font-size:14px; }
+  .summary .acts { margin-left:auto; display:flex; gap:8px; }
+
+  button { font-family:var(--mono); font-size:11.5px; letter-spacing:.1em;
+    text-transform:uppercase; padding:9px 14px; cursor:pointer; border-radius:0;
+    border:1px solid var(--ink); background:var(--panel); color:var(--ink);
+    transition:background .12s, color .12s; }
+  button:hover:not(:disabled) { background:var(--ink); color:#fff; }
+  button:disabled { opacity:.4; cursor:default; }
+  .summary button { border-color:rgba(255,255,255,.35); background:transparent; color:#fff; }
+  .summary button:hover:not(:disabled) { background:#fff; color:var(--ink); }
+  :focus-visible { outline:2px solid var(--indigo); outline-offset:2px; }
+  .summary :focus-visible { outline-color:#7de3d4; }
+
+  /* ---------- file rows ---------- */
+  .row { display:flex; gap:18px; padding:18px 0; border-bottom:1px solid var(--line); }
+  .thumb { flex:0 0 auto; width:62px; height:62px; border:1px solid var(--line);
+    background-color:var(--panel);
+    background-image:
+      linear-gradient(45deg, var(--check) 25%, transparent 25% 75%, var(--check) 75%),
+      linear-gradient(45deg, var(--check) 25%, transparent 25% 75%, var(--check) 75%);
+    background-size:12px 12px; background-position:0 0, 6px 6px;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .thumb img { max-width:100%; max-height:100%; display:block; }
+  .meta { flex:1 1 auto; min-width:0; }
+  .name { display:flex; gap:10px; align-items:baseline; justify-content:space-between; }
+  .name b { font-weight:600; font-size:15px; letter-spacing:-.01em;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dims { font-family:var(--mono); font-size:11px; color:var(--muted); flex:0 0 auto; }
+
+  /* signature: paired weight bars on a ruled track */
+  .bars { margin-top:12px; }
+  .track { position:relative; height:13px; margin-bottom:5px;
+    display:flex; align-items:center; gap:9px; }
+  .ruler { position:absolute; inset:0; pointer-events:none;
+    background-image:linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:25% 100%; }
+  .bar { height:9px; width:0; position:relative; z-index:1;
+    transition:width .45s cubic-bezier(.2,.8,.2,1); }
+  .bar.a { background:#b9c3ce; }
+  .bar.b { background:var(--teal); }
+  .figure { position:relative; z-index:1; flex:0 0 auto; font-family:var(--mono);
+    font-size:11.5px; color:var(--muted); background:var(--paper); padding-right:2px; }
+  .figure em { font-style:normal; color:var(--ink); font-weight:600; }
+  .figure .tag { letter-spacing:.1em; text-transform:uppercase; opacity:.65; }
+  .save { margin-top:11px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .delta { font-family:var(--mono); font-size:13px; color:var(--teal); font-weight:600; }
+  .delta.up { color:#a8420b; }
+  .working { font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+  .foot { margin:34px 0 0; font-family:var(--mono); font-size:11px;
+    letter-spacing:.06em; color:var(--muted); line-height:1.7; }
+
+  /* ---------- completion notice ---------- */
+  .toastWrap { position:fixed; right:18px; bottom:18px; z-index:20;
+    max-width:330px; pointer-events:none; }
+  .toast { pointer-events:auto; display:flex; gap:13px; align-items:flex-start;
+    background:var(--ink); color:#fff; padding:14px 15px;
+    box-shadow:0 10px 30px rgba(23,32,43,.28); border-left:3px solid #7de3d4;
+    animation:toastIn .32s cubic-bezier(.2,.9,.2,1); }
+  .toast.fail { border-left-color:#ff9a62; }
+  .toast .tick { font-family:var(--mono); font-size:15px; line-height:1.15;
+    color:#7de3d4; flex:0 0 auto; }
+  .toast.fail .tick { color:#ff9a62; }
+  .toast .tTitle { font-size:14px; font-weight:650; letter-spacing:-.01em; }
+  .toast .tBody { margin-top:4px; font-family:var(--mono); font-size:11.5px;
+    letter-spacing:.04em; opacity:.72; line-height:1.5; }
+  .toast .x { margin-left:auto; background:transparent; border:0; color:#fff;
+    opacity:.5; padding:0 2px; font-size:14px; letter-spacing:0; cursor:pointer; }
+  .toast .x:hover { opacity:1; background:transparent; color:#fff; }
+  @keyframes toastIn { from { transform:translateY(14px); opacity:0; } to { transform:none; opacity:1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition:none !important; animation:none !important; }
+  }
+  @media (max-width:560px) {
+    .quality { width:100%; }
+    .summary .acts { margin-left:0; width:100%; }
+    .toastWrap { left:14px; right:14px; max-width:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">runs in this tab · nothing is uploaded</p>
+      <h1>images <span class="arrow">→</span> webp</h1>
+      <p class="tagline">PNG, JPG, GIF, BMP, AVIF, SVG — drop them in, get smaller files out. Transparency survives the trip.</p>
+    </div>
+    <div class="quality">
+      <div class="qrow"><span>quality</span><span class="val" id="qval">0.82</span></div>
+      <input type="range" id="q" min="0.3" max="1" step="0.01" value="0.82" aria-label="WebP quality">
+      <div class="qrow" style="margin-top:4px"><span>smaller</span><span>sharper</span></div>
+    </div>
+  </header>
+
+  <label class="drop" id="drop">
+    <b>Drop images here</b>
+    <small>or click to choose files</small>
+    <input type="file" id="picker" accept="image/*" multiple>
+  </label>
+  <p class="note" id="note"></p>
+
+  <div class="summary" id="summary">
+    <span class="label">total saved</span>
+    <span class="big" id="saved">—</span>
+    <span class="pct" id="savedPct"></span>
+    <span class="acts">
+      <button id="saveAll">Save all</button>
+      <button id="clear">Clear</button>
+    </span>
+  </div>
+
+  <div id="list"></div>
+
+  <p class="foot">
+    Encoded with the browser's own WebP encoder at the quality above.<br>
+    Animated GIFs convert as a single still frame. HEIC only works where the browser can decode it.
+  </p>
+</div>
+
+<div class="toastWrap" id="toastWrap" aria-live="polite"></div>
+
+<script>
+(function () {
+  var items = [], quality = 0.82, seq = 0, busy = false, toastTimer = null;
+  var IMAGE_EXT = /\.(png|jpe?g|jfif|gif|bmp|webp|avif|svg|ico|tiff?|heic|heif)$/i;
+  var KIND_MAP = { jpeg:'jpg', jfif:'jpg', 'svg+xml':'svg', tiff:'tif', 'x-icon':'ico', 'vnd.microsoft.icon':'ico' };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var list = $('list'), note = $('note'), drop = $('drop'), toastWrap = $('toastWrap');
+
+  function fmt(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB';
+    return (b / 1048576).toFixed(2) + ' MB';
+  }
+  function kindOf(file) {
+    var sub = (file.type.split('/')[1] || '').toLowerCase();
+    var m = file.name.match(/\.([a-z0-9]+)$/i);
+    var raw = sub || (m ? m[1].toLowerCase() : '') || 'image';
+    return (KIND_MAP[raw] || raw).slice(0, 5);
+  }
+  function say(msg, warn) {
+    note.textContent = msg || '';
+    note.className = 'note' + (warn ? ' warn' : '');
+  }
+
+  /* ---- completion notice ---- */
+  function toast(title, body, fail) {
+    toastWrap.innerHTML = '';
+    var box = document.createElement('div');
+    box.className = 'toast' + (fail ? ' fail' : '');
+    box.innerHTML =
+      '<span class="tick">' + (fail ? '!' : '✓') + '</span>' +
+      '<div><div class="tTitle"></div><div class="tBody"></div></div>' +
+      '<button class="x" aria-label="Dismiss">✕</button>';
+    box.querySelector('.tTitle').textContent = title;
+    box.querySelector('.tBody').textContent = body;
+    box.querySelector('.x').addEventListener('click', function () { toastWrap.innerHTML = ''; });
+    toastWrap.appendChild(box);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastWrap.innerHTML = ''; }, 7000);
+  }
+
+  /* ---- decode / encode ---- */
+  function decodeViaImg(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        if (!img.naturalWidth) reject(new Error('This image has no fixed pixel size.'));
+        else resolve(img);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error("This browser can't decode that format."));
+      };
+      img.src = url;
+    });
+  }
+  function decode(file) {
+    if (typeof createImageBitmap === 'function') {
+      return createImageBitmap(file).catch(function () { return decodeViaImg(file); });
+    }
+    return decodeViaImg(file);
+  }
+  function encode(source, w, h, q) {
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(source, 0, 0, w, h);
+    return new Promise(function (resolve, reject) {
+      c.toBlob(function (blob) {
+        if (!blob || blob.type !== 'image/webp') reject(new Error("This browser can't encode WebP."));
+        else resolve(blob);
+      }, 'image/webp', q);
+    });
+  }
+
+  /* ---- rows ---- */
+  function buildRow(item) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML =
+      '<div class="thumb"><img alt=""></div>' +
+      '<div class="meta">' +
+        '<div class="name"><b></b><span class="dims"></span></div>' +
+        '<div class="bars">' +
+          '<div class="track"><div class="ruler"></div><div class="bar a"></div>' +
+            '<div class="figure"><em class="fa"></em> <span class="tag tk"></span></div></div>' +
+          '<div class="track"><div class="ruler"></div><div class="bar b"></div>' +
+            '<div class="figure"><em class="fb"></em> <span class="tag">webp</span></div></div>' +
+        '</div>' +
+        '<div class="save"><button class="dl">Save .webp</button>' +
+          '<span class="delta"></span><span class="working"></span></div>' +
+      '</div>';
+    item.el = {
+      img: row.querySelector('img'),
+      name: row.querySelector('b'),
+      dims: row.querySelector('.dims'),
+      barA: row.querySelector('.bar.a'),
+      barB: row.querySelector('.bar.b'),
+      fa: row.querySelector('.fa'),
+      fb: row.querySelector('.fb'),
+      tk: row.querySelector('.tk'),
+      dl: row.querySelector('.dl'),
+      delta: row.querySelector('.delta'),
+      working: row.querySelector('.working')
+    };
+    item.el.img.src = item.thumb;
+    item.el.name.textContent = item.name;
+    item.el.tk.textContent = item.kind;
+    item.el.dl.addEventListener('click', function () { download(item); });
+    list.appendChild(row);
+  }
+
+  function paint(item) {
+    var e = item.el, max = 1;
+    items.forEach(function (i) { if (i.size > max) max = i.size; });
+    var pct = function (n) { return Math.max(1.5, (n / max) * 70) + '%'; };
+
+    e.dims.textContent = item.w ? item.w + ' × ' + item.h : '';
+    e.fa.textContent = fmt(item.size);
+    e.barA.style.width = pct(item.size);
+
+    if (item.error) {
+      e.fb.textContent = '—'; e.barB.style.width = '0';
+      e.delta.textContent = ''; e.working.textContent = item.error;
+      e.dl.disabled = true; return;
+    }
+    if (!item.blob) {
+      e.working.textContent = 'encoding…'; e.dl.disabled = true; return;
+    }
+    e.working.textContent = ''; e.dl.disabled = false;
+    e.fb.textContent = fmt(item.blob.size);
+    e.barB.style.width = pct(item.blob.size);
+    var d = (1 - item.blob.size / item.size) * 100;
+    e.delta.textContent = (d >= 0 ? '−' : '+') + Math.abs(d).toFixed(0) + '%';
+    e.delta.className = 'delta' + (d < 0 ? ' up' : '');
+  }
+
+  function paintAll() {
+    items.forEach(paint);
+    var before = 0, after = 0, done = 0;
+    items.forEach(function (i) {
+      if (i.blob) { before += i.size; after += i.blob.size; done++; }
+    });
+    $('summary').className = 'summary' + (items.length ? ' on' : '');
+    $('saveAll').disabled = !done || busy;
+    if (done) {
+      $('saved').textContent = fmt(Math.max(0, before - after));
+      $('savedPct').textContent = '(' + ((1 - after / before) * 100).toFixed(0) + '% off ' +
+        done + ' file' + (done === 1 ? '' : 's') + ')';
+    } else {
+      $('saved').textContent = '—';
+      $('savedPct').textContent = '';
+    }
+  }
+
+  /* ---- adding files ---- */
+  function add(files) {
+    var imgs = [], skipped = 0;
+    Array.prototype.forEach.call(files, function (f) {
+      if (f.type.indexOf('image/') === 0 || IMAGE_EXT.test(f.name)) imgs.push(f);
+      else skipped++;
+    });
+    say(skipped ? 'Skipped ' + skipped + ' file' + (skipped === 1 ? '' : 's') + ' — images only.' : '', !!skipped);
+    if (!imgs.length) return;
+
+    var ok = [], failed = 0, left = imgs.length;
+
+    imgs.forEach(function (file) {
+      var item = {
+        id: ++seq, name: file.name, kind: kindOf(file), size: file.size,
+        thumb: URL.createObjectURL(file), blob: null, url: null, error: null, w: 0, h: 0
+      };
+      items.push(item);
+      buildRow(item);
+      paintAll();
+
+      decode(file).then(function (src) {
+        item.source = src;
+        item.w = src.width || src.naturalWidth;
+        item.h = src.height || src.naturalHeight;
+        return encode(src, item.w, item.h, quality);
+      }).then(function (blob) {
+        item.blob = blob;
+        ok.push({ inSize: item.size, outSize: blob.size });
+      }).catch(function (err) {
+        item.error = err.message || 'Could not read this image.';
+        failed++;
+      }).then(function () {
+        paintAll();
+        if (--left === 0) announce(ok, failed);
+      });
+    });
+  }
+
+  function announce(ok, failed) {
+    var inTotal = 0, outTotal = 0;
+    ok.forEach(function (r) { inTotal += r.inSize; outTotal += r.outSize; });
+    if (ok.length) {
+      toast(
+        ok.length + ' image' + (ok.length === 1 ? '' : 's') + ' converted',
+        fmt(Math.max(0, inTotal - outTotal)) + ' saved · ' +
+          ((1 - outTotal / inTotal) * 100).toFixed(0) + '% smaller' +
+          (failed ? ' · ' + failed + ' failed' : ''),
+        false
+      );
+    } else {
+      toast('Nothing converted',
+        failed + ' file' + (failed === 1 ? '' : 's') + " couldn't be decoded here", true);
+    }
+  }
+
+  /* ---- re-encode on quality change ---- */
+  function reencode() {
+    var targets = items.filter(function (i) { return i.source && !i.error; });
+    if (!targets.length) return;
+    busy = true;
+    targets.forEach(function (i) {
+      if (i.url) { URL.revokeObjectURL(i.url); i.url = null; }
+      i.blob = null;
+    });
+    paintAll();
+
+    var ok = [], chain = Promise.resolve();
+    targets.forEach(function (i) {
+      chain = chain.then(function () {
+        return encode(i.source, i.w, i.h, quality).then(function (b) {
+          i.blob = b;
+          ok.push({ inSize: i.size, outSize: b.size });
+        }, function (e) {
+          i.error = e.message;
+        }).then(function () { paint(i); });
+      });
+    });
+    chain.then(function () {
+      busy = false;
+      paintAll();
+      if (!ok.length) return;
+      var inTotal = 0, outTotal = 0;
+      ok.forEach(function (r) { inTotal += r.inSize; outTotal += r.outSize; });
+      toast('Re-encoded ' + ok.length + ' image' + (ok.length === 1 ? '' : 's') +
+        ' at ' + quality.toFixed(2),
+        fmt(Math.max(0, inTotal - outTotal)) + ' saved · ' +
+        ((1 - outTotal / inTotal) * 100).toFixed(0) + '% smaller', false);
+    });
+  }
+
+  /* ---- saving ---- */
+  function download(item) {
+    if (!item.blob) return;
+    if (!item.url) item.url = URL.createObjectURL(item.blob);
+    var a = document.createElement('a');
+    a.href = item.url;
+    a.download = item.name.replace(/\.[a-z0-9]+$/i, '') + '.webp';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  /* ---- wiring ---- */
+  $('picker').addEventListener('change', function (e) { add(e.target.files); e.target.value = ''; });
+
+  ['dragenter', 'dragover'].forEach(function (t) {
+    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('hot'); });
+  });
+  ['dragleave', 'drop'].forEach(function (t) {
+    drop.addEventListener(t, function () { drop.classList.remove('hot'); });
+  });
+  drop.addEventListener('drop', function (e) {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files) add(e.dataTransfer.files);
+  });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  $('q').addEventListener('input', function (e) {
+    quality = parseFloat(e.target.value);
+    $('qval').textContent = quality.toFixed(2);
+  });
+  $('q').addEventListener('change', reencode);
+
+  $('saveAll').addEventListener('click', function () {
+    var ready = items.filter(function (i) { return i.blob; });
+    if (!ready.length) return;
+    ready.forEach(function (i, n) { setTimeout(function () { download(i); }, n * 220); });
+    toast('Saving ' + ready.length + ' file' + (ready.length === 1 ? '' : 's'),
+      'Check your downloads folder — your browser may ask to allow multiple files.', false);
+  });
+
+  $('clear').addEventListener('click', function () {
+    items.forEach(function (i) {
+      URL.revokeObjectURL(i.thumb);
+      if (i.url) URL.revokeObjectURL(i.url);
+      if (i.source && i.source.close) i.source.close();
+    });
+    items = [];
+    list.innerHTML = '';
+    toastWrap.innerHTML = '';
+    say('');
+    paintAll();
+  });
+})();
+</script>
+</body>
+</html>
